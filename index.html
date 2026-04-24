@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fire Detection Monitor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg:      #080f0c;
+  --surface: rgba(19, 31, 26, 0.5);
+  --card:    rgba(26, 46, 38, 0.45);
+  --card2:   rgba(30, 50, 42, 0.6);
+  --border:  rgba(70, 110, 90, 0.3);
+  --text:    #ecfdf5;
+  --muted:   #94a3b8;
+  --green:   #10b981;
+  --yellow:  #f59e0b;
+  --red:     #ef4444;
+  --blue:    #3b82f6;
+  --purple:  #8b5cf6;
+  --cyan:    #06b6d4;
+  --glass-blur: blur(16px);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { 
+  font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+  background: url('https://images.unsplash.com/photo-1511497584788-876760111969?q=80&w=2000&auto=format&fit=crop') no-repeat center center fixed; 
+  background-size: cover; 
+  color: var(--text); 
+  min-height: 100vh; 
+}
+body::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at top, rgba(8, 15, 12, 0.5) 0%, rgba(0, 0, 0, 0.85) 100%);
+  z-index: -1;
+}
+
+/* ── TABS ── */
+.tab-bar { display: flex; gap: 2px; padding: 12px 20px 0; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 40; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+.tab-btn { padding: 10px 24px; font-size: 14px; font-weight: 600; border: none; background: transparent; color: var(--muted); border-radius: 12px 12px 0 0; cursor: pointer; transition: all 0.3s; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab-btn.active { color: var(--text); border-bottom-color: var(--green); background: var(--card); border-top: 1px solid var(--border); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+.tab-btn:hover:not(.active) { color: var(--text); background: rgba(255,255,255,0.05); }
+.tab-content { display: none; padding: 24px 20px; animation: fadeInTab 0.4s ease-out forwards; }
+.tab-content.active { display: block; }
+@keyframes fadeInTab { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── HEADER ── */
+header { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 51px; z-index: 39; flex-wrap: wrap; gap: 12px; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: 0 4px 30px rgba(0,0,0,0.2); }
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-icon { width: 46px; height: 46px; border-radius: 14px; background: linear-gradient(135deg,#ef4444,#f97316); display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4); border: 1px solid rgba(255,255,255,0.2); }
+h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+.subtitle { font-size: 13px; color: var(--muted); margin-top: 3px; font-weight: 500; }
+.header-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pill { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 30px; font-size: 13px; font-weight: 600; border: 1px solid var(--border); background: var(--card2); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 8px rgba(0,0,0,0.2); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+.dot.live { background: var(--green); box-shadow: 0 0 12px var(--green); animation: pulse 2s infinite; }
+.dot.err  { background: var(--red); box-shadow: 0 0 12px var(--red); }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+
+/* ── PHOTO POPUP ── */
+#photo-popup { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1000; background: rgba(0,0,0,0.75); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); align-items: center; justify-content: center; padding: 20px; }
+#photo-popup.open { display: flex; }
+.popup-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; overflow: hidden; max-width: 540px; width: 100%; animation: popIn 0.4s cubic-bezier(0.34,1.56,0.64,1); box-shadow: 0 30px 90px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.1); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); }
+@keyframes popIn { from{transform:scale(0.9) translateY(20px);opacity:0}to{transform:scale(1) translateY(0);opacity:1} }
+.popup-header { padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; }
+.popup-header.alert-hdr  { background: linear-gradient(to right, rgba(239,68,68,0.25), rgba(239,68,68,0.05)); border-bottom: 1px solid rgba(239,68,68,0.3); }
+.popup-header.manual-hdr { background: linear-gradient(to right, rgba(6,182,212,0.2), rgba(6,182,212,0.05)); border-bottom: 1px solid rgba(6,182,212,0.2); }
+.popup-title { font-size: 17px; font-weight: 800; }
+.popup-meta  { font-size: 13px; color: var(--muted); margin-top: 4px; font-weight: 500; }
+.popup-close-x { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--muted); font-size: 18px; cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; transition: all 0.2s; }
+.popup-close-x:hover { background: rgba(255,255,255,0.1); color: var(--text); transform: scale(1.05); }
+.popup-img-wrap { position: relative; background: rgba(0,0,0,0.6); }
+.popup-img-wrap img { width: 100%; max-height: 380px; object-fit: contain; display: block; }
+.popup-img-badge { position: absolute; top: 16px; left: 16px; padding: 6px 14px; border-radius: 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.05em; backdrop-filter: blur(8px); box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+.popup-img-badge.alert-b  { background: rgba(239,68,68,0.9); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+.popup-img-badge.manual-b { background: rgba(6,182,212,0.9); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+.popup-body { padding: 24px; }
+.popup-chips { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.popup-chip { padding: 8px 16px; border-radius: 12px; font-size: 13px; border: 1px solid var(--border); background: rgba(0,0,0,0.3); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }
+.popup-chip span { font-weight: 700; margin-left: 6px; }
+.popup-actions { display: flex; gap: 14px; }
+.btn-ok { flex: 1; padding: 14px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); background: linear-gradient(180deg, #10b981, #059669); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; box-shadow: 0 6px 20px rgba(16,185,129,0.3); }
+.btn-ok:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(16,185,129,0.4); }
+.btn-ok:active { transform: scale(0.97); }
+.btn-ok:disabled { background: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; border: none; }
+.btn-dismiss { padding: 14px 24px; border-radius: 14px; border: 1px solid var(--border); background: rgba(255,255,255,0.05); color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-dismiss:hover { background: rgba(255,255,255,0.1); transform: translateY(-1px); }
+.queue-badge { position: fixed; bottom: 30px; right: 30px; z-index: 900; background: linear-gradient(135deg, #ef4444, #dc2626); color: #fff; border-radius: 30px; padding: 12px 24px; font-size: 15px; font-weight: 800; cursor: pointer; display: none; box-shadow: 0 10px 30px rgba(239,68,68,0.6); border: 1px solid rgba(255,255,255,0.2); animation: bounce 1.5s infinite; }
+@keyframes bounce { 0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)} }
+
+/* ── DASHBOARD ── */
+.danger-banner { border-radius: 20px; padding: 24px 30px; margin-bottom: 28px; display: flex; align-items: center; gap: 20px; border: 1px solid; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: 0 12px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05); }
+.danger-banner.l0 { background:rgba(16,185,129,0.12);  border-color:rgba(16,185,129,0.4); box-shadow: 0 10px 30px rgba(16,185,129,0.1); }
+.danger-banner.l1 { background:rgba(245,158,11,0.12);  border-color:rgba(245,158,11,0.4); box-shadow: 0 10px 30px rgba(245,158,11,0.1); }
+.danger-banner.l2 { background:rgba(239,68,68,0.15);  border-color:rgba(239,68,68,0.5); box-shadow: 0 10px 30px rgba(239,68,68,0.15); }
+.danger-banner.l3 { background:rgba(239,68,68,0.25);   border-color:#ef4444; animation:blink-bg 0.8s infinite; box-shadow: 0 10px 40px rgba(239,68,68,0.4); }
+@keyframes blink-bg { 0%,100%{background:rgba(239,68,68,0.25)}50%{background:rgba(239,68,68,0.4)} }
+.banner-icon { font-size: 42px; flex-shrink: 0; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
+.banner-label { font-size: 13px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.banner-title { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.banner-desc  { font-size: 15px; color: var(--text); opacity: 0.8; margin-top: 6px; font-weight: 500; }
+.banner-right { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.btn-snap { padding: 14px 24px; border-radius: 14px; background: linear-gradient(180deg, #06b6d4, #0891b2); color: #fff; border: 1px solid rgba(255,255,255,0.2); font-size: 15px; font-weight: 800; cursor: pointer; transition: all 0.2s; box-shadow: 0 6px 20px rgba(6,182,212,0.4); }
+.btn-snap:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(6,182,212,0.5); }
+.btn-snap:active { transform: scale(0.96); }
+.btn-snap:disabled { background: var(--card2); color: var(--muted); border-color: var(--border); cursor: not-allowed; transform: none; box-shadow: none; }
+.snap-status { font-size: 13px; color: var(--text); opacity: 0.6; text-align: right; font-weight: 600; }
+
+/* LEDs */
+.led-row { display: flex; gap: 16px; margin-bottom: 28px; flex-wrap: wrap; }
+.led-card { flex:1; min-width:130px; background:var(--card); border:1px solid var(--border); border-radius:18px; padding:18px 20px; display:flex; align-items:center; gap:16px; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 25px rgba(0,0,0,0.2); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.led-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.15); box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 12px 30px rgba(0,0,0,0.3); }
+.led-bulb { width:28px; height:28px; border-radius:50%; flex-shrink:0; transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: inset 0 2px 6px rgba(0,0,0,0.6); }
+.led-bulb.g  { background:#064e3b; border:2px solid #065f46; }
+.led-bulb.y  { background:#78350f; border:2px solid #92400e; }
+.led-bulb.r  { background:#7f1d1d; border:2px solid #991b1b; }
+.led-bulb.g.on { background:var(--green);  border-color:#34d399;  box-shadow:0 0 25px var(--green), inset 0 2px 6px rgba(255,255,255,0.5); }
+.led-bulb.y.on { background:var(--yellow); border-color:#fcd34d; box-shadow:0 0 25px var(--yellow), inset 0 2px 6px rgba(255,255,255,0.5); }
+.led-bulb.r.on { background:var(--red);    border-color:#fca5a5;    box-shadow:0 0 25px var(--red), inset 0 2px 6px rgba(255,255,255,0.5); }
+.led-name  { font-size:14px; font-weight:800; }
+.led-state { font-size:12px; font-weight:700; color:var(--muted); margin-top:4px; }
+.buzzer-card { flex:1; min-width:130px; background:var(--card); border:1px solid var(--border); border-radius:18px; padding:18px 20px; display:flex; align-items:center; gap:16px; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 25px rgba(0,0,0,0.2); transition: transform 0.3s; }
+.buzzer-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.15); box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 12px 30px rgba(0,0,0,0.3); }
+.buzzer-icon { font-size:26px; transition:all 0.3s; filter:grayscale(1); opacity: 0.4; }
+.buzzer-icon.on { filter:none; opacity: 1; animation:shake 0.3s cubic-bezier(.36,.07,.19,.97) infinite; }
+
+/* Sensor cards */
+.sensor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:18px; margin-bottom:28px; }
+.s-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:22px; transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 30px rgba(0,0,0,0.2); position: relative; overflow: hidden; }
+.s-card::after { content:''; position:absolute; top:0; left:0; width:100%; height:100%; background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 100%); pointer-events:none; }
+.s-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.2); box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 15px 40px rgba(0,0,0,0.3); z-index: 1; }
+.s-card.warn   { border-color:rgba(245,158,11,0.6); background: rgba(245,158,11,0.08); box-shadow: 0 0 20px rgba(245,158,11,0.15); }
+.s-card.danger { border-color:rgba(239,68,68,0.7); background: rgba(239,68,68,0.1); box-shadow: 0 0 20px rgba(239,68,68,0.2); }
+.s-label { font-size:12px; font-weight:800; color:var(--text); opacity: 0.7; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:14px; }
+.s-value { font-size:38px; font-weight:800; line-height:1; letter-spacing:-0.03em; text-shadow: 0 2px 10px rgba(0,0,0,0.3); }
+.s-unit  { font-size:16px; font-weight:600; color:var(--muted); margin-left:6px; }
+.s-bar   { height:6px; background:rgba(0,0,0,0.4); border-radius:6px; margin-top:16px; overflow:hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.6); }
+.s-fill  { height:100%; border-radius:6px; transition:width 0.8s cubic-bezier(0.34,1.56,0.64,1),background 0.3s; box-shadow: 0 0 12px currentColor; }
+
+/* Thresholds */
+.threshold-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:16px; margin-bottom:28px; }
+.t-card { border-radius:20px; border:1px solid; padding:20px 24px; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: 0 10px 30px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.05); transition: transform 0.3s; }
+.t-card:hover { transform: translateY(-3px); box-shadow: 0 15px 40px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.1); }
+.t-card.l0 { background:rgba(16,185,129,0.1);  border-color:rgba(16,185,129,0.35); }
+.t-card.l1 { background:rgba(245,158,11,0.1);  border-color:rgba(245,158,11,0.35); }
+.t-card.l2 { background:rgba(239,68,68,0.1);  border-color:rgba(239,68,68,0.35); }
+.t-card.l3 { background:rgba(239,68,68,0.2);   border-color:rgba(239,68,68,0.55); }
+.t-level { font-size:14px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:12px; }
+.t-card.l0 .t-level { color:#34d399; }
+.t-card.l1 .t-level { color:#fbbf24; }
+.t-card.l2 .t-level { color:#f87171; }
+.t-card.l3 .t-level { color:#fca5a5; }
+.t-card ul { list-style:none; font-size:14px; color:var(--text); opacity: 0.85; line-height:1.8; font-weight: 500; }
+.t-card ul li::before { content:"→ "; opacity:0.6; margin-right: 4px; }
+
+/* Table */
+.section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:12px; }
+.section-title { font-size:20px; font-weight:800; letter-spacing: -0.02em; }
+.btn-refresh { padding:10px 18px; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,0.05); color:var(--text); font-size:14px; font-weight:700; cursor:pointer; transition:all 0.2s; box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 10px rgba(0,0,0,0.1); }
+.btn-refresh:hover { background:rgba(255,255,255,0.1); border-color:rgba(255,255,255,0.2); transform: translateY(-2px); box-shadow: inset 0 1px 0 rgba(255,255,255,0.1), 0 6px 15px rgba(0,0,0,0.2); }
+.btn-refresh:active { transform: translateY(0); }
+.table-wrap { background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 15px 40px rgba(0,0,0,0.3); }
+.table-scroll { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:14px; }
+th { text-align:left; padding:16px 22px; color:var(--text); opacity: 0.7; font-size:13px; font-weight:800; text-transform:uppercase; letter-spacing:0.1em; border-bottom:1px solid var(--border); background:rgba(0,0,0,0.3); }
+td { padding:16px 22px; border-bottom:1px solid rgba(255,255,255,0.05); white-space:nowrap; font-weight: 600; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:rgba(255,255,255,0.06); }
+.badge { display:inline-block; padding:6px 12px; border-radius:24px; font-size:12px; font-weight:800; letter-spacing: 0.05em; text-transform: uppercase; }
+.b0 { background:rgba(16,185,129,0.15);  color:#34d399; border: 1px solid rgba(16,185,129,0.3); }
+.b1 { background:rgba(245,158,11,0.15);  color:#fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.b2 { background:rgba(239,68,68,0.15);  color:#f87171; border: 1px solid rgba(239,68,68,0.3); }
+.b3 { background:rgba(239,68,68,0.3);  color:#fca5a5; border:1px solid #ef4444; box-shadow: 0 0 15px rgba(239,68,68,0.4); }
+.rssi-g { color:#34d399; } .rssi-y { color:#fbbf24; } .rssi-r { color:#f87171; }
+.no-data { text-align:center; padding:60px; color:var(--text); opacity: 0.6; font-size:16px; font-weight: 600; }
+
+/* ── GALLERY ── */
+.gallery-toolbar { display:flex; align-items:center; gap:16px; margin-bottom:24px; flex-wrap:wrap; }
+.gallery-filter { display:flex; gap:10px; background: var(--card); padding: 6px; border-radius: 30px; border: 1px solid var(--border); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+.filt-btn { padding:10px 20px; border-radius:24px; border:none; background:transparent; color:var(--text); opacity: 0.7; font-size:14px; font-weight:700; cursor:pointer; transition:all 0.3s; }
+.filt-btn.active { background:rgba(255,255,255,0.15); color:var(--text); opacity: 1; box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1); }
+.filt-btn:hover:not(.active) { opacity: 1; background: rgba(255,255,255,0.08); }
+.photo-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:22px; }
+.photo-card { background:var(--card); border:1px solid var(--border); border-radius:20px; overflow:hidden; cursor:pointer; transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1); animation:fadeIn 0.5s ease both; backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); box-shadow: 0 12px 35px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05); }
+.photo-card:hover { transform:translateY(-8px) scale(1.03); border-color:rgba(255,255,255,0.25); box-shadow:0 20px 45px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1); z-index: 10; }
+.photo-card.unconfirmed { border-color:rgba(245,158,11,0.6); }
+.photo-card.unconfirmed:hover { border-color: #fcd34d; box-shadow: 0 20px 45px rgba(245,158,11,0.3); }
+.photo-thumb { width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:#000; border-bottom: 1px solid var(--border); transition: transform 0.5s, filter 0.5s; }
+.photo-card:hover .photo-thumb { transform: scale(1.05); filter: brightness(1.15); }
+.photo-info { padding:16px 18px; display:flex; align-items:center; justify-content:space-between; position: relative; z-index: 2; background: var(--card); }
+.photo-meta { font-size:13px; color:var(--text); opacity: 0.7; font-weight: 600; }
+.photo-meta strong { display:block; font-size:14px; color:var(--text); opacity: 1; font-weight: 800; margin-bottom: 6px; }
+.photo-tr-badge { padding:6px 12px; border-radius:10px; font-size:11px; font-weight:800; letter-spacing: 0.05em; }
+.alert-tr  { background:rgba(239,68,68,0.15);  color:#fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+.manual-tr { background:rgba(6,182,212,0.15);  color:#67e8f9; border: 1px solid rgba(6,182,212,0.3); }
+.unconf-tr { background:rgba(245,158,11,0.15);  color:#fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+
+/* Gallery lightbox */
+.gal-lb-inner { background:var(--card); border: 1px solid var(--border); border-radius:24px; overflow:hidden; max-width:900px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow: 0 35px 100px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.1); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur); transform: scale(0.95); transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1); }
+#gal-lb.open .gal-lb-inner { transform: scale(1); }
+.gal-lb-img { width:100%; object-fit:contain; max-height:65vh; background:rgba(0,0,0,0.7); display:block; }
+.gal-lb-footer { padding:22px 30px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; background: rgba(0,0,0,0.3); }
+.gal-lb-meta { font-size:15px; color:var(--text); opacity: 0.8; font-weight: 600; }
+.gal-lb-meta strong { color:var(--text); opacity: 1; display:block; margin-bottom:8px; font-size: 18px; font-weight: 800; }
+.btn-dl { padding:12px 24px; border-radius:14px; border:1px solid rgba(16,185,129,0.5); color:#34d399; background:rgba(16,185,129,0.15); font-size:14px; font-weight:800; text-decoration:none; display:inline-flex; align-items:center; gap:10px; cursor:pointer; transition:all 0.2s; box-shadow: 0 4px 15px rgba(16,185,129,0.2); }
+.btn-dl:hover { background:rgba(16,185,129,0.25); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(16,185,129,0.3); }
+.btn-lb-close { padding:12px 24px; border-radius:14px; border:1px solid rgba(255,255,255,0.2); color:var(--text); background:rgba(255,255,255,0.1); font-size:14px; font-weight:700; cursor:pointer; transition:all 0.2s; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+.btn-lb-close:hover { background:rgba(255,255,255,0.15); transform: translateY(-2px); }
+.last-update { font-size:13px; font-weight:700; color:var(--text); opacity: 0.6; }
+
+.cam-status { font-size:13px; font-weight:800; color:var(--text); opacity: 0.8; padding:8px 18px; background:var(--card2); border-radius:24px; border:1px solid var(--border); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 12px rgba(0,0,0,0.15); }
+</style>
+</head>
+<body>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('dashboard',this)">📊 Dashboard</button>
+  <button class="tab-btn"        onclick="switchTab('gallery',this)">📷 Photos</button>
+</nav>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🔥</div>
+    <div>
+      <h1>Fire Detection Monitor</h1>
+      <div class="subtitle">LoRa · DHT22 · ESP32-CAM · Supabase-only</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="cam-status" id="cam-status">CAM: checking...</div>
+    <div class="pill"><div class="dot" id="live-dot"></div><span id="live-label">Connecting...</span></div>
+    <span class="last-update" id="last-update">—</span>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- DASHBOARD                                                -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="tab-dashboard" class="tab-content active">
+
+  <div id="danger-banner" class="danger-banner l0">
+    <div class="banner-icon" id="banner-icon">✅</div>
+    <div>
+      <div class="banner-label">Current Status</div>
+      <div class="banner-title" id="banner-title">Loading...</div>
+      <div class="banner-desc"  id="banner-desc">Waiting for data...</div>
+    </div>
+    <div class="banner-right">
+      <button class="btn-snap" id="snap-btn" onclick="manualCapture()">📷 Take Photo</button>
+      <div class="snap-status" id="snap-status">Via Supabase → ESP-CAM</div>
+    </div>
+  </div>
+
+  <div class="led-row">
+    <div class="led-card"><div class="led-bulb g" id="led-g"></div><div><div class="led-name">Green LED</div><div class="led-state" id="st-g">OFF</div></div></div>
+    <div class="led-card"><div class="led-bulb y" id="led-y"></div><div><div class="led-name">Yellow LED</div><div class="led-state" id="st-y">OFF</div></div></div>
+    <div class="led-card"><div class="led-bulb r" id="led-r"></div><div><div class="led-name">Red LED</div><div class="led-state" id="st-r">OFF</div></div></div>
+    <div class="buzzer-card"><div class="buzzer-icon" id="buz-icon">🔔</div><div><div class="led-name">Buzzer</div><div class="led-state" id="st-buz">SILENT</div></div></div>
+  </div>
+
+  <div class="sensor-grid">
+    <div class="s-card" id="sc-temp"><div class="s-label">Temperature (DHT22)</div><div class="s-value" id="sv-temp">—<span class="s-unit">°C</span></div><div class="s-bar"><div class="s-fill" id="sf-temp" style="width:0%;background:var(--blue)"></div></div></div>
+    <div class="s-card" id="sc-hum"><div class="s-label">Humidity (DHT22)</div><div class="s-value" id="sv-hum">—<span class="s-unit">%</span></div><div class="s-bar"><div class="s-fill" id="sf-hum" style="width:0%;background:var(--blue)"></div></div></div>
+    <div class="s-card" id="sc-gas"><div class="s-label">Gas / Smoke (MQ2)</div><div class="s-value" id="sv-gas">—<span class="s-unit">%</span></div><div class="s-bar"><div class="s-fill" id="sf-gas" style="width:0%;background:var(--green)"></div></div></div>
+    <div class="s-card" id="sc-flame"><div class="s-label">Flame Intensity</div><div class="s-value" id="sv-flame">—<span class="s-unit">%</span></div><div class="s-bar"><div class="s-fill" id="sf-flame" style="width:0%;background:var(--green)"></div></div></div>
+    <div class="s-card" id="sc-soil"><div class="s-label">Soil Moisture</div><div class="s-value" id="sv-soil">—<span class="s-unit">%</span></div><div class="s-bar"><div class="s-fill" id="sf-soil" style="width:0%;background:var(--blue)"></div></div></div>
+    <div class="s-card" id="sc-rssi"><div class="s-label">LoRa RSSI</div><div class="s-value" id="sv-rssi">—<span class="s-unit">dBm</span></div><div class="s-bar"><div class="s-fill" id="sf-rssi" style="width:0%;background:var(--purple)"></div></div></div>
+  </div>
+
+  <div class="section-header" style="margin-bottom:12px;"><div class="section-title">Alert Thresholds</div></div>
+  <div class="threshold-grid" style="margin-bottom:20px;">
+    <div class="t-card l0"><div class="t-level">🟢 Level 0 — Safe</div><ul><li>Temp &lt; 38°C</li><li>Flame &lt; 15%, Gas &lt; 25%</li><li>Green LED, silent</li></ul></div>
+    <div class="t-card l1"><div class="t-level">🟡 Level 1 — Caution</div><ul><li>Temp 38–45°C, OR</li><li>Flame 15–35%, Gas 25–40%</li><li>Yellow LED, silent</li></ul></div>
+    <div class="t-card l2"><div class="t-level">🔴 Level 2 — Warning</div><ul><li>Temp 45–55°C, OR</li><li>Flame 35–60%, Gas 40–60%</li><li>Red LED + beeps + 📷</li></ul></div>
+    <div class="t-card l3"><div class="t-level">🚨 Level 3 — Fire!</div><ul><li>Temp ≥ 55°C, OR</li><li>Flame ≥ 60%, Gas ≥ 60%</li><li>All LEDs + alarm + 📷</li></ul></div>
+  </div>
+
+  <div class="section-header">
+    <div class="section-title">Recent Sensor Readings</div>
+    <button class="btn-refresh" onclick="fetchReadings()">↻ Refresh</button>
+  </div>
+  <div class="table-wrap"><div class="table-scroll">
+    <div id="table-container"><div class="no-data"><span class="spinner"></span> Loading...</div></div>
+  </div></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════ -->
+<!-- GALLERY                                                  -->
+<!-- ══════════════════════════════════════════════════════════ -->
+<div id="tab-gallery" class="tab-content">
+  <div style="max-width:1100px;margin:0 auto;">
+    <div class="gallery-toolbar">
+      <div class="section-title">Photo Gallery</div>
+      <div class="gallery-filter">
+        <button class="filt-btn active" onclick="setFilter('all',this)">All</button>
+        <button class="filt-btn"        onclick="setFilter('alert',this)">Alerts</button>
+        <button class="filt-btn"        onclick="setFilter('manual',this)">Manual</button>
+        <button class="filt-btn"        onclick="setFilter('unconfirmed',this)">Pending</button>
+      </div>
+      <button class="btn-refresh" style="margin-left:auto;" onclick="fetchGallery()">↻ Refresh</button>
+    </div>
+    <div class="photo-grid" id="photo-grid">
+      <div class="no-data" style="grid-column:1/-1;"><span class="spinner"></span> Loading photos...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Photo popup -->
+<div id="photo-popup">
+  <div class="popup-card">
+    <div class="popup-header" id="popup-header">
+      <div><div class="popup-title" id="popup-title">📷 New Photo</div><div class="popup-meta" id="popup-meta">Just now</div></div>
+      <button class="popup-close-x" onclick="dismissPopup()">✕</button>
+    </div>
+    <div class="popup-img-wrap">
+      <img id="popup-img" src="" alt="Captured photo">
+      <div class="popup-img-badge" id="popup-badge">ALERT</div>
+    </div>
+    <div class="popup-body">
+      <div class="popup-chips" id="popup-chips"></div>
+      <div class="popup-actions">
+        <button class="btn-ok" id="popup-ok-btn" onclick="confirmPhoto()">✓ OK — Save to Gallery</button>
+        <button class="btn-dismiss" onclick="dismissPopup()">Dismiss</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="queue-badge" id="queue-badge" onclick="showNextPhoto()">
+  📷 <span id="queue-count">1</span> more →
+</div>
+
+<!-- Gallery lightbox -->
+<div id="gal-lb">
+  <div class="gal-lb-inner">
+    <img id="gal-lb-img" class="gal-lb-img" src="" alt="">
+    <div class="gal-lb-footer">
+      <div class="gal-lb-meta"><strong id="gal-lb-title">—</strong><span id="gal-lb-meta2">—</span></div>
+      <div class="gal-lb-actions">
+        <a id="gal-lb-dl" class="btn-dl" href="#" download>⬇ Download</a>
+        <button class="btn-lb-close" onclick="closeGalLb()">✕ Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+const SB_URL = 'https://xpvxfwxyhfsxvxbwhxul.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inhwdnhmd3h5aGZzeHZ4YndoeHVsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ1MzI4NzIsImV4cCI6MjA5MDEwODg3Mn0.7zTbeNlPgoHVHo7sNCeeDv031-GGdRlBB-Y3HD9xXNs';
+const HDR = { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json' };
+
+let photoQueue = [], currentPopupImageId = null, knownImageIds = new Set();
+let galleryFilter = 'all', allGalleryImages = [];
+
+// ── Tabs ─────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'gallery') fetchGallery();
+}
+
+// ── Sensor readings ──────────────────────────────────────────
+async function fetchReadings() {
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/sensor_readings?select=*&order=created_at.desc&limit=20`, { headers: HDR });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const rows = await res.json();
+    setOnline(true);
+    document.getElementById('last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    if (rows.length > 0) updateDashboard(rows[0]);
+    renderTable(rows);
+  } catch (e) {
+    setOnline(false);
+    console.error('[Readings]', e);
+  }
+}
+
+// ── Cam status: check capture_requests recent activity ───────
+async function checkCamStatus() {
+  try {
+    const res = await fetch(
+      `${SB_URL}/rest/v1/capture_requests?select=status,created_at&order=created_at.desc&limit=1`,
+      { headers: HDR }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    const el = document.getElementById('cam-status');
+    if (!rows.length) { el.textContent = 'CAM: no requests yet'; return; }
+    const r = rows[0];
+    const age = Math.round((Date.now() - new Date(r.created_at)) / 1000);
+    // If last request is done and recent, CAM is alive
+    if (r.status === 'done' && age < 120) {
+      el.textContent = 'CAM: online ✓';
+      el.style.color = 'var(--green)';
+    } else if (r.status === 'processing') {
+      el.textContent = 'CAM: capturing...';
+      el.style.color = 'var(--yellow)';
+    } else if (r.status === 'pending' && age > 30) {
+      el.textContent = 'CAM: offline?';
+      el.style.color = 'var(--red)';
+    } else {
+      el.textContent = 'CAM: ' + r.status;
+      el.style.color = 'var(--muted)';
+    }
+  } catch (e) { /* silent */ }
+}
+
+// ── Manual capture — write a capture_request to Supabase ─────
+async function manualCapture() {
+  const btn = document.getElementById('snap-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Requesting...';
+  document.getElementById('snap-status').textContent = 'Writing to Supabase...';
+
+  try {
+    const res = await fetch(`${SB_URL}/rest/v1/capture_requests`, {
+      method: 'POST',
+      headers: { ...HDR, 'Prefer': 'return=representation' },
+      body: JSON.stringify({ trigger: 'manual', status: 'pending' })
+    });
+    if (res.ok) {
+      document.getElementById('snap-status').textContent =
+        '✓ Request sent — CAM will capture in ~3s';
+    } else {
+      document.getElementById('snap-status').textContent = '⚠ Failed: HTTP ' + res.status;
+    }
+  } catch (e) {
+    document.getElementById('snap-status').textContent = '⚠ Network error: ' + e.message;
+  }
+
+  btn.disabled = false;
+  btn.textContent = '📷 Take Photo';
+  setTimeout(() => {
+    document.getElementById('snap-status').textContent = 'Via Supabase → ESP-CAM';
+  }, 5000);
+}
+
+// ── Poll for new unconfirmed images ──────────────────────────
+async function pollPendingImages() {
+  try {
+    const res = await fetch(
+      `${SB_URL}/rest/v1/camera_images?confirmed=eq.false&order=created_at.desc&limit=10`,
+      { headers: HDR }
+    );
+    if (!res.ok) return;
+    const images = await res.json();
+    const newImgs = images.filter(img =>
+      !knownImageIds.has(img.id) && !photoQueue.find(q => q.id === img.id)
+    );
+    newImgs.forEach(img => { knownImageIds.add(img.id); photoQueue.push(img); });
+    updateQueueBadge();
+    if (!document.getElementById('photo-popup').classList.contains('open') && photoQueue.length > 0) {
+      showNextPhoto();
+    }
+  } catch (e) { /* silent */ }
+}
+
+// ── Photo popup ───────────────────────────────────────────────
+function showNextPhoto() {
+  if (photoQueue.length === 0) return;
+  const img = photoQueue[0];
+  currentPopupImageId = img.id;
+  const isAlert = img.trigger === 'alert';
+  document.getElementById('popup-header').className =
+    'popup-header ' + (isAlert ? 'alert-hdr' : 'manual-hdr');
+  document.getElementById('popup-title').textContent =
+    isAlert ? '🚨 Fire Alert — Photo Captured' : '📷 Manual Photo Captured';
+  document.getElementById('popup-meta').textContent =
+    new Date(img.created_at).toLocaleTimeString();
+  document.getElementById('popup-img').src = img.image_data || '';
+  const badge = document.getElementById('popup-badge');
+  badge.textContent = isAlert ? '🔥 ALERT' : '📷 MANUAL';
+  badge.className = 'popup-img-badge ' + (isAlert ? 'alert-b' : 'manual-b');
+  const chips = document.getElementById('popup-chips');
+  chips.innerHTML = '';
+  if (img.danger_level != null) {
+    const dl = ['Safe','Caution','Warning','FIRE!'];
+    const dc = ['var(--green)','var(--yellow)','var(--red)','#ff4444'];
+    [
+      img.temperature != null ? `Temp <span>${parseFloat(img.temperature).toFixed(1)}°C</span>` : null,
+      img.flame_level != null ? `Flame <span>${img.flame_level}%</span>` : null,
+      img.gas_level   != null ? `Gas <span>${img.gas_level}%</span>`   : null,
+      `Danger <span style="color:${dc[img.danger_level]}">${dl[img.danger_level]}</span>`
+    ].filter(Boolean).forEach(c => {
+      const d = document.createElement('div');
+      d.className = 'popup-chip'; d.innerHTML = c; chips.appendChild(d);
+    });
+  }
+  document.getElementById('popup-ok-btn').disabled = false;
+  document.getElementById('popup-ok-btn').textContent = '✓ OK — Save to Gallery';
+  document.getElementById('photo-popup').classList.add('open');
+  updateQueueBadge();
+}
+
+function updateQueueBadge() {
+  const showing = document.getElementById('photo-popup').classList.contains('open');
+  const rem = showing ? photoQueue.length - 1 : photoQueue.length;
+  const b = document.getElementById('queue-badge');
+  b.style.display = rem > 0 ? 'block' : 'none';
+  document.getElementById('queue-count').textContent = rem;
+}
+
+async function confirmPhoto() {
+  if (!currentPopupImageId) return;
+  const btn = document.getElementById('popup-ok-btn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  try {
+    const res = await fetch(
+      `${SB_URL}/rest/v1/camera_images?id=eq.${currentPopupImageId}`,
+      { method: 'PATCH', headers: { ...HDR, 'Prefer': 'return=minimal' }, body: JSON.stringify({ confirmed: true }) }
+    );
+    if (res.ok || res.status === 204) {
+      btn.textContent = '✓ Saved!';
+      photoQueue = photoQueue.filter(p => p.id !== currentPopupImageId);
+      currentPopupImageId = null;
+      setTimeout(() => { closePopupAndNext(); fetchGallery(); }, 700);
+    } else { btn.textContent = 'Error — retry'; btn.disabled = false; }
+  } catch (e) { btn.textContent = 'Network error'; btn.disabled = false; }
+}
+
+function dismissPopup() {
+  photoQueue = photoQueue.filter(p => p.id !== currentPopupImageId);
+  currentPopupImageId = null;
+  closePopupAndNext();
+}
+
+function closePopupAndNext() {
+  document.getElementById('photo-popup').classList.remove('open');
+  document.getElementById('popup-img').src = '';
+  updateQueueBadge();
+  if (photoQueue.length > 0) setTimeout(showNextPhoto, 400);
+}
+
+// ── Dashboard update ─────────────────────────────────────────
+const LEVELS = [
+  { cls:'l0', icon:'✅', title:'All Clear — Safe',         desc:'All sensors within normal range.',                    ledG:true,  ledY:false, ledR:false, buzz:false },
+  { cls:'l1', icon:'⚠️', title:'Caution — Investigate',    desc:'A sensor is slightly elevated. Check the area.',      ledG:false, ledY:true,  ledR:false, buzz:false },
+  { cls:'l2', icon:'🔴', title:'Warning — Possible Fire',  desc:'Multiple sensors elevated. Investigate immediately.', ledG:false, ledY:false, ledR:true,  buzz:true  },
+  { cls:'l3', icon:'🚨', title:'FIRE DETECTED!',           desc:'Critical readings — evacuate and call emergency!',    ledG:true,  ledY:true,  ledR:true,  buzz:true  },
+];
+
+function updateDashboard(row) {
+  const L = LEVELS[Math.min(3, Math.max(0, row.danger_level))];
+  document.getElementById('danger-banner').className = 'danger-banner ' + L.cls;
+  document.getElementById('banner-icon').textContent  = L.icon;
+  document.getElementById('banner-title').textContent = L.title;
+  document.getElementById('banner-desc').textContent  = L.desc;
+  setLed('led-g','st-g',L.ledG,'ON — Safe');
+  setLed('led-y','st-y',L.ledY,'ON — Caution');
+  setLed('led-r','st-r',L.ledR,'ON — Warning');
+  const buz = document.getElementById('buz-icon');
+  buz.classList.toggle('on', L.buzz);
+  document.getElementById('st-buz').textContent = L.buzz ? 'ALARMING!' : 'SILENT';
+  const temp = parseFloat(row.temperature);
+  const tempOk = temp > -40 && temp < 80;
+  setSensor('temp', tempOk ? temp.toFixed(1) : '?', '°C',
+    tempOk ? Math.min(100,(temp/80)*100) : 0,
+    temp>=55?'#ef4444':temp>=38?'#eab308':'#3b82f6',
+    !tempOk?'danger':temp>=45?'danger':''
+  );
+  const hum = parseFloat(row.humidity);
+  setSensor('hum', hum.toFixed(1), '%', hum, '#3b82f6', '');
+  const gas = row.gas_level;
+  setSensor('gas', gas, '%', gas, gas>=60?'#ef4444':gas>=25?'#eab308':'#22c55e', gas>=60?'danger':gas>=25?'warn':'');
+  const fl = row.flame_level;
+  setSensor('flame', fl, '%', fl, fl>=60?'#ef4444':fl>=15?'#eab308':'#22c55e', fl>=60?'danger':fl>=15?'warn':'');
+  const soil = row.soil_moisture;
+  setSensor('soil', soil<0?'—':soil, soil<0?'':'%', soil<0?0:soil, '#3b82f6', '');
+  const rssi = row.rssi;
+  setSensor('rssi', rssi, 'dBm', Math.min(100,Math.max(0,((rssi+120)/90)*100)),
+    rssi>=-70?'#22c55e':rssi>=-90?'#eab308':'#ef4444', '');
+}
+
+function setLed(bulbId, stateId, on, label) {
+  document.getElementById(bulbId).classList.toggle('on', on);
+  document.getElementById(stateId).textContent = on ? label : 'OFF';
+}
+function setSensor(key, val, unit, pct, color, warnCls) {
+  document.getElementById('sc-'+key).className = 's-card' + (warnCls?' '+warnCls:'');
+  document.getElementById('sv-'+key).innerHTML = `${val}<span class="s-unit">${unit}</span>`;
+  const f = document.getElementById('sf-'+key);
+  f.style.width = pct+'%'; f.style.background = color;
+}
+
+// ── History table ────────────────────────────────────────────
+function renderTable(rows) {
+  if (!rows||!rows.length) {
+    document.getElementById('table-container').innerHTML = '<div class="no-data">No readings yet</div>';
+    return;
+  }
+  let html = `<table><thead><tr><th>Time</th><th>Pkt#</th><th>Temp</th><th>Humidity</th><th>Gas</th><th>Flame</th><th>Soil</th><th>Danger</th><th>RSSI</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    const ts = new Date(r.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    const t = parseFloat(r.temperature);
+    const bad = t < -30 || t > 85;
+    html += `<tr><td>${ts}</td><td style="color:var(--muted)">#${r.packet_id}</td>
+      <td ${bad?'style="color:var(--red);font-weight:700"':''}>${t.toFixed(1)} °C</td>
+      <td>${parseFloat(r.humidity).toFixed(1)} %</td><td>${r.gas_level} %</td>
+      <td>${r.flame_level} %</td><td>${r.soil_moisture<0?'—':r.soil_moisture+' %'}</td>
+      <td>${dangerBadge(r.danger_level)}</td>
+      <td class="${r.rssi>=-70?'rssi-g':r.rssi>=-90?'rssi-y':'rssi-r'}">${r.rssi} dBm</td></tr>`;
+  });
+  document.getElementById('table-container').innerHTML = html + '</tbody></table>';
+}
+
+function dangerBadge(l) {
+  return `<span class="badge b${l}">${['Safe','Caution','Warning','FIRE!'][l]||l}</span>`;
+}
+
+// ── Gallery ──────────────────────────────────────────────────
+async function fetchGallery() {
+  try {
+    const res = await fetch(
+      `${SB_URL}/rest/v1/camera_images?select=*,sensor_readings(danger_level,temperature,flame_level,gas_level)&order=created_at.desc&limit=60`,
+      { headers: HDR }
+    );
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    allGalleryImages = await res.json();
+    renderGallery();
+  } catch (e) {
+    document.getElementById('photo-grid').innerHTML =
+      `<div class="no-data" style="grid-column:1/-1">Failed: ${e.message}</div>`;
+  }
+}
+
+function setFilter(f, btn) {
+  galleryFilter = f;
+  document.querySelectorAll('.filt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderGallery();
+}
+
+function renderGallery() {
+  const filtered = allGalleryImages.filter(img => {
+    if (galleryFilter==='all') return true;
+    if (galleryFilter==='alert') return img.trigger==='alert';
+    if (galleryFilter==='manual') return img.trigger==='manual';
+    if (galleryFilter==='unconfirmed') return !img.confirmed;
+    return true;
+  });
+  const grid = document.getElementById('photo-grid');
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="no-data" style="grid-column:1/-1">No photos in this category yet.</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map((img,i) => {
+    const ts   = new Date(img.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    const date = new Date(img.created_at).toLocaleDateString([],{month:'short',day:'numeric'});
+    const isAlert = img.trigger==='alert', unconf = !img.confirmed;
+    const sr = img.sensor_readings, dl = sr ? sr.danger_level : null;
+    return `<div class="photo-card ${unconf?'unconfirmed':''}" style="animation-delay:${i*0.03}s" onclick="openGalLb(${img.id})">
+      <img class="photo-thumb" src="${img.image_data}" alt="" loading="lazy">
+      <div class="photo-info">
+        <div class="photo-meta"><strong>${date} ${ts}</strong>${dl!==null?dangerBadge(dl):''}</div>
+        <span class="photo-tr-badge ${isAlert?'alert-tr':unconf?'unconf-tr':'manual-tr'}">${isAlert?'ALERT':unconf?'PENDING':'MANUAL'}</span>
+      </div></div>`;
+  }).join('');
+}
+
+function openGalLb(id) {
+  const img = allGalleryImages.find(i => i.id===id);
+  if (!img) return;
+  document.getElementById('gal-lb-img').src  = img.image_data;
+  document.getElementById('gal-lb-dl').href  = img.image_data;
+  document.getElementById('gal-lb-dl').download = `fire_photo_${img.id}.jpg`;
+  const ts = new Date(img.created_at).toLocaleString();
+  const sr = img.sensor_readings;
+  document.getElementById('gal-lb-title').textContent =
+    (img.trigger==='alert'?'🔥 Alert':'📷 Manual') + ' — #' + img.id;
+  document.getElementById('gal-lb-meta2').textContent =
+    ts + (sr?` | ${parseFloat(sr.temperature).toFixed(1)}°C | Danger ${sr.danger_level}`:'');
+  document.getElementById('gal-lb').classList.add('open');
+}
+function closeGalLb() {
+  document.getElementById('gal-lb').classList.remove('open');
+  document.getElementById('gal-lb-img').src = '';
+}
+document.getElementById('gal-lb').addEventListener('click', e => { if(e.target===document.getElementById('gal-lb')) closeGalLb(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape'){closeGalLb();dismissPopup();} });
+
+function setOnline(ok) {
+  document.getElementById('live-dot').className   = ok ? 'dot live' : 'dot err';
+  document.getElementById('live-label').textContent = ok ? 'Live' : 'Error';
+}
+
+// ── Polling ──────────────────────────────────────────────────
+fetchReadings();
+fetchGallery();
+pollPendingImages();
+checkCamStatus();
+
+setInterval(fetchReadings,     5000);
+setInterval(pollPendingImages, 6000);
+setInterval(checkCamStatus,   15000);
+</script>
+</body>
+</html>
